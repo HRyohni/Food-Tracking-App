@@ -20,3 +20,13 @@ class Worker(Base):
         default=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
+
+
+# Register the shared catalog + order tables on this service's metadata so
+# couriers can read/update orders from the shared database.
+from Ashared.domain import (  # noqa: E402,F401
+    Product,
+    Order,
+    OrderItem,
+    OrderStatus,
+)

@@ -24,6 +24,16 @@ export interface ServiceConfig {
   resource: string
   /** Fields sent when creating a record (incl. password). */
   fields: Field[]
+  /** Which field holds the email used to log in (customers/workers: "email",
+   *  partners: "contact_email"). */
+  emailKey: string
+}
+
+/** Look up a service config by its key (throws if unknown). */
+export function serviceByKey (key: string): ServiceConfig {
+  const svc = services.find(s => s.key === key)
+  if (!svc) throw new Error(`Unknown service: ${key}`)
+  return svc
 }
 
 const env = import.meta.env
@@ -36,6 +46,7 @@ export const services: ServiceConfig[] = [
     icon: 'mdi-account',
     baseUrl: env.VITE_CUSTOMER_API ?? 'http://localhost:8001',
     resource: 'customers',
+    emailKey: 'email',
     fields: [
       { key: 'name', label: 'Name', required: true },
       { key: 'email', label: 'Email', type: 'email', required: true },
@@ -50,6 +61,7 @@ export const services: ServiceConfig[] = [
     icon: 'mdi-account-hard-hat',
     baseUrl: env.VITE_WORKER_API ?? 'http://localhost:8002',
     resource: 'workers',
+    emailKey: 'email',
     fields: [
       { key: 'name', label: 'Name', required: true },
       { key: 'email', label: 'Email', type: 'email', required: true },
@@ -65,6 +77,7 @@ export const services: ServiceConfig[] = [
     icon: 'mdi-handshake',
     baseUrl: env.VITE_PARTNER_API ?? 'http://localhost:8003',
     resource: 'partners',
+    emailKey: 'contact_email',
     fields: [
       { key: 'company_name', label: 'Company name', required: true },
       { key: 'contact_email', label: 'Contact email', type: 'email', required: true },

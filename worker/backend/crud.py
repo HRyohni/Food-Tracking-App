@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 
 import models
 import schemas
-from security import hash_password
+from security import hash_password, verify_password
 
 
 def get_worker(db: Session, worker_id: int):
@@ -49,3 +49,64 @@ def delete_worker(db: Session, worker_id: int):
     db.delete(db_worker)
     db.commit()
     return db_worker
+
+
+def authenticate_worker(db: Session, email: str, password: str):
+    """Return the worker if email+password are valid, else None."""
+    user = get_worker_by_email(db, email)
+    if not user or not verify_password(password, user.hashed_password):
+        return None
+    return user
+
+
+# ---------- Orders (courier dispatch) ----------
+def get_available_orders(db: Session, skip: int = 0, limit: int = 100):
+    """READY orders not yet claimed by any courier — the dispatch pool."""
+    return (
+        db.query(models.Order)
+        .filter(
+            models.Order.status == models.OrderStatus.READY.value,
+            models.Order.worker_id.is_(None),
+        )
+        .order_by(models.Order.created_at.asc())  # oldest first (fair queue)
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+
+
+def get_orders_by_worker(db: Session, worker_id: int, skip: int = 0, limit: int = 100):
+    return (
+        db.query(models.Order)
+        .filter(models.Order.worker_id == worker_id)
+        .order_by(models.Order.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+
+
+def get_order(db: Session, order_id: int):
+    return db.query(models.Order).filter(models.Order.id == order_id).first()
+
+
+def accept_order(db: Session, worker_id: int, order: models.Order):
+    """Claim a READY order: assign this courier and move it to PICKED_UP.
+
+    Returns None if the order was already claimed or isn't READY — the guard is
+    what prevents two couriers grabbing the same order.
+    """
+    if order.status != models.OrderStatus.READY.value or order.worker_id is not None:
+        return None
+    order.worker_id = worker_id
+    order.status = models.OrderStatus.PICKED_UP.value
+    db.commit()
+    db.refresh(order)
+    return order
+
+
+def mark_delivered(db: Session, order: models.Order):
+    order.status = models.OrderStatus.DELIVERED.value
+    db.commit()
+    db.refresh(order)
+    return order
