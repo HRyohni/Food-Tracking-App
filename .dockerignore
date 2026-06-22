@@ -1,0 +1,7 @@
+# Backend build contexts are the repo root — keep them lean.
+**/__pycache__
+**/*.pyc
+**/*.pyo
+.git
+.frontend
+*.md

@@ -1,0 +1,81 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: food-db
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: mydb
+    ports:
+      # Host 55432 -> container 5432 (5432/5433 were taken by other local DBs).
+      # Backends connect via db:5432 on the internal network, unaffected by this.
+      - "55432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d mydb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  customer:
+    build:
+      context: .
+      dockerfile: custommer/backend/Dockerfile
+    container_name: food-customer
+    environment:
+      DATABASE_URL: postgresql://user:password@db:5432/mydb
+      CORS_ORIGINS: http://localhost:13000,http://localhost:3000
+    ports:
+      - "18001:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: .
+      dockerfile: worker/backend/Dockerfile
+    container_name: food-worker
+    environment:
+      DATABASE_URL: postgresql://user:password@db:5432/mydb
+      CORS_ORIGINS: http://localhost:13000,http://localhost:3000
+    ports:
+      - "18002:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  partner:
+    build:
+      context: .
+      dockerfile: partner/backend/Dockerfile
+    container_name: food-partner
+    environment:
+      DATABASE_URL: postgresql://user:password@db:5432/mydb
+      CORS_ORIGINS: http://localhost:13000,http://localhost:3000
+    ports:
+      - "18003:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./.frontend
+      dockerfile: Dockerfile
+    container_name: food-frontend
+    environment:
+      # Vite reads VITE_* from the env; browser calls these host ports.
+      VITE_CUSTOMER_API: http://localhost:18001
+      VITE_WORKER_API: http://localhost:18002
+      VITE_PARTNER_API: http://localhost:18003
+    ports:
+      - "13000:3000"
+    depends_on:
+      - customer
+      - worker
+      - partner
+
+volumes:
+  pgdata:
