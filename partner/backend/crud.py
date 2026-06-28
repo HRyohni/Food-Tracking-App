@@ -140,6 +140,17 @@ def get_order(db: Session, order_id: int):
 
 def set_order_status(db: Session, order: models.Order, new_status: str):
     order.status = new_status
+    # On acceptance, ping the courier pool so a courier can start heading to the
+    # delivery address before the order is marked READY. The partner transition
+    # map only allows pending -> accepted, so this fires exactly once per order.
+    if new_status == models.OrderStatus.ACCEPTED.value:
+        db.add(
+            models.CourierPing(
+                order_id=order.id,
+                partner_id=order.partner_id,
+                delivery_address=order.delivery_address,
+            )
+        )
     db.commit()
     db.refresh(order)
     return order

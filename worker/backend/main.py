@@ -140,6 +140,29 @@ def accept_order(
     return claimed
 
 
+@app.get("/dispatch/pings", response_model=list[schemas.CourierPingOut])
+def list_dispatch_pings(
+    db: Session = Depends(get_db),
+    current_worker: models.Worker = Depends(get_current_worker),
+):
+    """Heads-up pings: orders a partner just accepted. A courier can use these to
+    start heading to the delivery address before the order is marked READY."""
+    return crud.get_courier_pings(db)
+
+
+@app.post("/dispatch/pings/{ping_id}/ack", response_model=schemas.CourierPingOut)
+def ack_dispatch_ping(
+    ping_id: int,
+    db: Session = Depends(get_db),
+    current_worker: models.Worker = Depends(get_current_worker),
+):
+    """Dismiss a ping once a courier has seen/handled it."""
+    ping = crud.get_courier_ping(db, ping_id)
+    if not ping:
+        raise HTTPException(status_code=404, detail="Ping not found")
+    return crud.acknowledge_ping(db, ping)
+
+
 @app.post("/orders/{order_id}/deliver", response_model=schemas.OrderOut)
 def deliver_order(
     order_id: int,

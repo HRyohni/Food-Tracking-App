@@ -110,3 +110,30 @@ def mark_delivered(db: Session, order: models.Order):
     db.commit()
     db.refresh(order)
     return order
+
+
+# ---------- Dispatch pings (heads-up when a partner accepts an order) ----------
+def get_courier_pings(db: Session, skip: int = 0, limit: int = 100):
+    """Un-acknowledged courier pings, newest first."""
+    return (
+        db.query(models.CourierPing)
+        .filter(models.CourierPing.acknowledged.is_(False))
+        .order_by(models.CourierPing.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+
+
+def get_courier_ping(db: Session, ping_id: int):
+    return (
+        db.query(models.CourierPing).filter(models.CourierPing.id == ping_id).first()
+    )
+
+
+def acknowledge_ping(db: Session, ping: models.CourierPing):
+    """Dismiss a ping so it stops showing in the courier feed."""
+    ping.acknowledged = True
+    db.commit()
+    db.refresh(ping)
+    return ping

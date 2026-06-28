@@ -38,6 +38,15 @@ export interface Order {
   items: OrderItem[]
 }
 
+export interface CourierPing {
+  id: number
+  order_id: number
+  partner_id: number
+  delivery_address: string
+  acknowledged: boolean
+  created_at: string
+}
+
 interface Opts {
   method?: string
   body?: any
@@ -142,3 +151,9 @@ export const acceptOrder = (svc: ServiceConfig, token: string, id: number): Prom
 
 export const deliverOrder = (svc: ServiceConfig, token: string, id: number): Promise<Order> =>
   apiFetch(`${svc.baseUrl}/orders/${id}/deliver`, { method: 'POST', token })
+
+export const dispatchPings = (svc: ServiceConfig, token: string): Promise<CourierPing[]> =>
+  apiFetch(`${svc.baseUrl}/dispatch/pings`, { token })
+
+export const ackPing = (svc: ServiceConfig, token: string, id: number): Promise<CourierPing> =>
+  apiFetch(`${svc.baseUrl}/dispatch/pings/${id}/ack`, { method: 'POST', token })

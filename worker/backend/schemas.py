@@ -62,3 +62,16 @@ class OrderOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# ---------- Dispatch pings (heads-up when a partner accepts an order) ----------
+class CourierPingOut(BaseModel):
+    id: int
+    order_id: int
+    partner_id: int
+    delivery_address: str
+    acknowledged: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True

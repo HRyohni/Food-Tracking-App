@@ -88,6 +88,27 @@ class Order(Base):
     )
 
 
+class CourierPing(Base):
+    """A heads-up dropped into the courier pool the moment a partner ACCEPTS an
+    order, so a courier can start heading to the delivery address before the food
+    is marked READY.
+
+    It is NOT a hard assignment — there's no assigned courier yet at accept time,
+    so any courier can read the ping. A courier dismisses it by setting
+    `acknowledged`. `delivery_address` is snapshotted from the order so the
+    courier view needs no join and the ping still reads correctly even if the
+    order is later edited."""
+
+    __tablename__ = "courier_pings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    order_id = Column(Integer, index=True, nullable=False)    # logical ref -> orders.id
+    partner_id = Column(Integer, index=True, nullable=False)  # logical ref -> partners.id
+    delivery_address = Column(String, nullable=False)         # snapshot from the order
+    acknowledged = Column(Boolean, default=False, nullable=False, index=True)
+    created_at = Column(DateTime(timezone=True), default=_utcnow, nullable=False)
+
+
 class OrderItem(Base):
     """One line in an order. Name/price are SNAPSHOTTED at order time so later
     catalog edits never change a historical order's contents or total."""

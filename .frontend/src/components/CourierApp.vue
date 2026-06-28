@@ -12,6 +12,20 @@
       {{ error }}
     </v-alert>
 
+    <!-- Dispatch pings: a partner just accepted an order — head over early. -->
+    <v-alert
+      v-for="p in pings"
+      :key="p.id"
+      class="mb-3"
+      closable
+      icon="mdi-bell-ring"
+      type="info"
+      variant="tonal"
+      @click:close="dismissPing(p.id)"
+    >
+      <span class="font-weight-medium">Order #{{ p.order_id }} accepted</span> — start heading to {{ p.delivery_address }}.
+    </v-alert>
+
     <v-row>
       <!-- Available pool -->
       <v-col cols="12" md="6">
@@ -78,8 +92,11 @@
   import { onMounted, onUnmounted, ref } from 'vue'
   import {
     acceptOrder,
+    ackPing,
     availableOrders,
+    type CourierPing,
     deliverOrder,
+    dispatchPings,
     myDeliveries,
     type Order,
   } from '@/api'
@@ -93,6 +110,7 @@
 
   const available = ref<Order[]>([])
   const mine = ref<Order[]>([])
+  const pings = ref<CourierPing[]>([])
   const loading = ref(false)
   const error = ref('')
   let timer: number | undefined
@@ -101,9 +119,10 @@
     if (!a.token) return
     loading.value = true
     try {
-      [available.value, mine.value] = await Promise.all([
+      [available.value, mine.value, pings.value] = await Promise.all([
         availableOrders(svc, a.token),
         myDeliveries(svc, a.token),
+        dispatchPings(svc, a.token),
       ])
     } catch (e: any) {
       error.value = e.message
@@ -127,6 +146,16 @@
     try {
       await deliverOrder(svc, a.token, id)
       await loadAll()
+    } catch (e: any) {
+      error.value = e.message
+    }
+  }
+
+  async function dismissPing (id: number) {
+    if (!a.token) return
+    pings.value = pings.value.filter(p => p.id !== id) // optimistic
+    try {
+      await ackPing(svc, a.token, id)
     } catch (e: any) {
       error.value = e.message
     }

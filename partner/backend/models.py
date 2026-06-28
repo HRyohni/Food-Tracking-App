@@ -24,6 +24,7 @@ class Partner(Base):
 # Register the shared catalog + order tables on this service's metadata so
 # `Base.metadata.create_all` creates them in the shared database.
 from Ashared.domain import (  # noqa: E402,F401
+    CourierPing,
     Product,
     Order,
     OrderItem,
