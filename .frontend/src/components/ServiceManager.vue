@@ -1,10 +1,10 @@
 <template>
-  <v-container max-width="1100" class="py-6">
+  <v-container class="py-6" max-width="1100">
     <div class="d-flex align-center mb-4">
-      <h2 class="text-h5 font-weight-medium">{{ service.label }}</h2>
+      <h2 class="wolt-section-title" style="font-size: 1.4rem">{{ service.label }}</h2>
       <v-chip
-        :color="healthy === false ? 'error' : healthy ? 'success' : 'grey'"
         class="ml-3"
+        :color="healthy === false ? 'error' : healthy ? 'success' : 'grey'"
         size="small"
         variant="tonal"
       >
@@ -13,12 +13,12 @@
       <v-spacer />
       <v-btn
         class="mr-2"
-        :loading="loading"
         icon="mdi-refresh"
+        :loading="loading"
         variant="text"
         @click="load"
       />
-      <v-btn color="primary" prepend-icon="mdi-plus" @click="openCreate">
+      <v-btn color="primary" prepend-icon="mdi-plus" variant="flat" @click="openCreate">
         New {{ service.singular }}
       </v-btn>
     </div>
@@ -28,56 +28,75 @@
       class="mb-4"
       closable
       type="error"
+      variant="tonal"
       @click:close="error = ''"
     >
       {{ error }}
     </v-alert>
 
-    <v-data-table
-      :headers="headers"
-      :items="items"
-      :loading="loading"
-      item-value="id"
-    >
-      <template #item.is_active="{ value }">
-        <v-chip :color="value ? 'success' : 'grey'" size="small" variant="tonal">
-          {{ value ? 'active' : 'inactive' }}
-        </v-chip>
-      </template>
-      <template #item.created_at="{ value }">
-        {{ formatDate(value) }}
-      </template>
-      <template #item.actions="{ item }">
-        <v-btn
-          color="error"
-          icon="mdi-delete"
-          size="small"
-          variant="text"
-          @click="remove(item)"
-        />
-      </template>
-      <template #no-data>
-        <div class="py-8 text-medium-emphasis">No {{ service.label.toLowerCase() }} yet.</div>
-      </template>
-    </v-data-table>
+    <v-card elevation="1">
+      <v-data-table
+        :headers="headers"
+        :items="items"
+        :loading="loading"
+        item-value="id"
+      >
+        <template #item.is_active="{ value }">
+          <v-chip :color="value ? 'success' : 'grey'" size="small" variant="tonal">
+            {{ value ? 'active' : 'inactive' }}
+          </v-chip>
+        </template>
+        <template #item.created_at="{ value }">
+          {{ formatDate(value) }}
+        </template>
+        <template #item.actions="{ item }">
+          <v-btn
+            color="primary"
+            icon="mdi-pencil"
+            size="small"
+            variant="text"
+            @click="openEdit(item)"
+          />
+          <v-btn
+            color="error"
+            icon="mdi-delete-outline"
+            size="small"
+            variant="text"
+            @click="remove(item)"
+          />
+        </template>
+        <template #no-data>
+          <div class="py-8 text-medium-emphasis">No {{ service.label.toLowerCase() }} yet.</div>
+        </template>
+      </v-data-table>
+    </v-card>
 
     <v-dialog v-model="dialog" max-width="500">
-      <v-card :title="`New ${service.singular}`">
+      <v-card :title="editingId === null ? `New ${service.singular}` : `Edit ${service.singular}`">
         <v-card-text>
           <v-text-field
-            v-for="f in service.fields"
+            v-for="f in dialogFields"
             :key="f.key"
             v-model="form[f.key]"
-            class="mb-1"
-            density="comfortable"
+            class="mb-3"
             :label="f.required ? `${f.label} *` : f.label"
             :type="f.type === 'password' ? 'password' : f.type === 'email' ? 'email' : 'text'"
           />
+          <!-- is_active is editable on update (not set at creation). -->
+          <v-switch
+            v-if="editingId !== null"
+            v-model="form.is_active"
+            color="primary"
+            hide-details
+            label="Active"
+          />
         </v-card-text>
-        <v-card-actions>
+        <v-card-actions class="px-4 pb-4">
           <v-spacer />
-          <v-btn :disabled="saving" @click="dialog = false">Cancel</v-btn>
-          <v-btn color="primary" :loading="saving" @click="save">Create</v-btn>
+          <v-btn :disabled="saving" variant="text" @click="dialog = false">Cancel</v-btn>
+          <v-btn color="primary" :loading="saving" variant="flat" @click="save">
+            {{ editingId === null ? 'Create' : 'Save changes' }}
+          </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -92,6 +111,7 @@
     deleteRecord,
     listRecords,
     type Record_,
+    updateRecord,
   } from '@/api'
   import type { ServiceConfig } from '@/services'
 
@@ -103,6 +123,7 @@
   const error = ref('')
   const healthy = ref<boolean | null>(null)
   const dialog = ref(false)
+  const editingId = ref<number | null>(null)
   const form = ref<Record_>({})
 
   const headers = computed(() => [
@@ -114,6 +135,14 @@
     { title: 'Created', key: 'created_at' },
     { title: '', key: 'actions', sortable: false },
   ])
+
+  // On edit, a password can't be changed here (update schemas don't accept it),
+  // so drop the password field from the form when editing.
+  const dialogFields = computed(() =>
+    editingId.value === null
+      ? props.service.fields
+      : props.service.fields.filter(f => f.type !== 'password'),
+  )
 
   async function load () {
     loading.value = true
@@ -134,7 +163,20 @@
   }
 
   function openCreate () {
+    editingId.value = null
     form.value = {}
+    error.value = ''
+    dialog.value = true
+  }
+
+  function openEdit (item: Record_) {
+    editingId.value = item.id
+    // Prefill only the editable (non-password) fields, plus is_active.
+    const next: Record_ = { is_active: item.is_active }
+    for (const f of props.service.fields) {
+      if (f.type !== 'password') next[f.key] = item[f.key] ?? ''
+    }
+    form.value = next
     error.value = ''
     dialog.value = true
   }
@@ -143,7 +185,15 @@
     saving.value = true
     error.value = ''
     try {
-      await createRecord(props.service, form.value)
+      if (editingId.value === null) {
+        await createRecord(props.service, form.value)
+      } else {
+        // Send everything except password; the backend update schema ignores
+        // unset fields and only touches what we pass.
+        const payload: Record_ = { ...form.value }
+        delete payload.password
+        await updateRecord(props.service, editingId.value, payload)
+      }
       dialog.value = false
       await load()
     } catch (error_: any) {

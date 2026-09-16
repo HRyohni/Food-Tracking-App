@@ -1,18 +1,27 @@
 <template>
   <LoginCard v-if="!a.token" service-key="partner" />
 
-  <v-container v-else class="py-6" max-width="1100">
-    <div class="d-flex align-center mb-4">
-      <h2 class="text-h5 font-weight-medium">{{ a.user?.company_name ?? 'Partner' }}</h2>
-      <v-spacer />
-      <v-btn prepend-icon="mdi-logout" variant="text" @click="logout">Log out</v-btn>
+  <v-container v-else class="py-6" max-width="1200">
+    <!-- Hero -->
+    <div class="wolt-hero mb-6">
+      <div class="d-flex align-center">
+        <div class="wolt-tile wolt-tile--lg mr-4" style="background: rgba(255,255,255,.18)">🏪</div>
+        <div>
+          <div class="wolt-hero__title">{{ a.user?.company_name ?? 'Partner' }}</div>
+          <div class="wolt-hero__sub">
+            {{ pendingCount ? `${pendingCount} order(s) waiting for you` : 'All caught up — nice work' }}
+          </div>
+        </div>
+        <v-spacer />
+        <v-btn color="white" prepend-icon="mdi-logout" variant="text" @click="logout">Log out</v-btn>
+      </div>
     </div>
 
-    <v-alert v-if="error" class="mb-4" closable type="error" @click:close="error = ''">
+    <v-alert v-if="error" class="mb-4" closable type="error" variant="tonal" @click:close="error = ''">
       {{ error }}
     </v-alert>
 
-    <v-tabs v-model="tab" class="mb-4" color="primary">
+    <v-tabs v-model="tab" class="mb-5" color="primary">
       <v-tab value="orders">
         Incoming orders
         <v-badge v-if="pendingCount" class="ml-2" color="error" :content="pendingCount" inline />
@@ -22,73 +31,90 @@
 
     <!-- ORDERS -->
     <div v-if="tab === 'orders'">
-      <v-card v-for="o in orders" :key="o.id" class="mb-2" variant="outlined">
+      <v-card v-for="o in orders" :key="o.id" class="mb-3" elevation="1">
         <v-card-text>
           <div class="d-flex align-center">
-            <span class="font-weight-medium">Order #{{ o.id }}</span>
+            <span class="font-weight-bold">Order #{{ o.id }}</span>
             <v-chip class="ml-2" :color="statusColor(o.status)" size="small" variant="flat">
               {{ statusLabel(o.status) }}
             </v-chip>
             <v-spacer />
-            <span class="font-weight-medium">${{ o.total_amount.toFixed(2) }}</span>
+            <span class="font-weight-bold">${{ o.total_amount.toFixed(2) }}</span>
+          </div>
+          <div class="text-body-2 mt-2">
+            {{ o.items.map(i => `${i.quantity}× ${i.product_name}`).join(', ') }}
           </div>
           <div class="text-caption text-medium-emphasis mt-1">
-            {{ o.items.map(i => `${i.quantity}× ${i.product_name}`).join(', ') }} · to {{ o.delivery_address }}
+            <v-icon icon="mdi-map-marker-outline" size="14" /> {{ o.delivery_address }}
           </div>
-          <div class="mt-2">
+          <div class="mt-3">
             <v-btn
               v-for="action in nextActions(o.status)"
               :key="action.status"
               class="mr-2"
               :color="action.color"
               size="small"
-              variant="tonal"
+              variant="flat"
               @click="advance(o.id, action.status)"
             >
               {{ action.label }}
             </v-btn>
-            <span v-if="!nextActions(o.status).length" class="text-caption text-medium-emphasis">
+            <v-chip v-if="!nextActions(o.status).length" size="small" variant="tonal">
               {{ o.worker_id ? `Courier #${o.worker_id}` : 'Waiting for courier' }}
-            </span>
+            </v-chip>
           </div>
         </v-card-text>
       </v-card>
-      <div v-if="!orders.length" class="text-medium-emphasis py-6 text-center">No orders yet.</div>
+      <div v-if="!orders.length" class="wolt-empty">
+        <div class="wolt-empty__emoji">📦</div>
+        No orders yet.
+      </div>
     </div>
 
     <!-- MENU -->
     <div v-else>
-      <div class="d-flex mb-3">
+      <div class="d-flex align-center mb-3">
+        <h3 class="wolt-section-title">Your products</h3>
         <v-spacer />
-        <v-btn color="primary" prepend-icon="mdi-plus" @click="openCreate">Add product</v-btn>
+        <v-btn color="primary" prepend-icon="mdi-plus" variant="flat" @click="openCreate">Add product</v-btn>
       </div>
-      <v-data-table :headers="headers" :items="products" :loading="loading" item-value="id">
-        <template #item.price="{ value }">${{ Number(value).toFixed(2) }}</template>
-        <template #item.is_available="{ value }">
-          <v-chip :color="value ? 'success' : 'grey'" size="small" variant="tonal">
-            {{ value ? 'available' : 'hidden' }}
-          </v-chip>
-        </template>
-        <template #item.actions="{ item }">
-          <v-btn icon="mdi-pencil" size="small" variant="text" @click="openEdit(item)" />
-          <v-btn color="error" icon="mdi-delete" size="small" variant="text" @click="remove(item.id)" />
-        </template>
-      </v-data-table>
+
+      <v-card v-for="p in products" :key="p.id" class="mb-3" elevation="1">
+        <v-card-text class="d-flex align-center" style="gap: 16px">
+          <div class="wolt-tile">{{ foodEmoji(p.id) }}</div>
+          <div class="flex-grow-1" style="min-width: 0">
+            <div class="d-flex align-center">
+              <span class="font-weight-bold">{{ p.name }}</span>
+              <v-chip class="ml-2" :color="p.is_available ? 'success' : 'grey'" size="x-small" variant="tonal">
+                {{ p.is_available ? 'available' : 'hidden' }}
+              </v-chip>
+            </div>
+            <div class="text-caption text-medium-emphasis text-truncate">{{ p.description || '—' }}</div>
+            <span class="wolt-price mt-2 d-inline-block">${{ Number(p.price).toFixed(2) }}</span>
+          </div>
+          <v-btn icon="mdi-pencil" size="small" variant="text" @click="openEdit(p)" />
+          <v-btn color="error" icon="mdi-delete-outline" size="small" variant="text" @click="remove(p.id)" />
+        </v-card-text>
+      </v-card>
+      <div v-if="!products.length && !loading" class="wolt-empty">
+        <div class="wolt-empty__emoji">🍳</div>
+        No products yet — add your first dish.
+      </div>
     </div>
 
     <!-- PRODUCT DIALOG -->
     <v-dialog v-model="dialog" max-width="500">
       <v-card :title="editingId ? 'Edit product' : 'New product'">
         <v-card-text>
-          <v-text-field v-model="form.name" class="mb-1" density="comfortable" label="Name *" />
-          <v-text-field v-model="form.description" class="mb-1" density="comfortable" label="Description" />
-          <v-text-field v-model.number="form.price" class="mb-1" density="comfortable" label="Price *" type="number" />
+          <v-text-field v-model="form.name" class="mb-3" label="Name *" />
+          <v-text-field v-model="form.description" class="mb-3" label="Description" />
+          <v-text-field v-model.number="form.price" class="mb-3" label="Price *" prefix="$" type="number" />
           <v-switch v-model="form.is_available" color="primary" hide-details label="Available" />
         </v-card-text>
-        <v-card-actions>
+        <v-card-actions class="px-4 pb-4">
           <v-spacer />
-          <v-btn :disabled="saving" @click="dialog = false">Cancel</v-btn>
-          <v-btn color="primary" :loading="saving" @click="save">Save</v-btn>
+          <v-btn :disabled="saving" variant="text" @click="dialog = false">Cancel</v-btn>
+          <v-btn color="primary" :loading="saving" variant="flat" @click="save">Save</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -111,7 +137,7 @@
   import { auth, doLogout, loadMe } from '@/auth'
   import LoginCard from '@/components/LoginCard.vue'
   import { serviceByKey } from '@/services'
-  import { PARTNER_NEXT, statusColor, statusLabel } from '@/status'
+  import { foodEmoji, PARTNER_NEXT, statusColor, statusLabel } from '@/status'
 
   const svc = serviceByKey('partner')
   const a = auth('partner')
@@ -126,14 +152,6 @@
   const editingId = ref<number | null>(null)
   const form = reactive<Record_>({ name: '', description: '', price: 0, is_available: true })
   let timer: number | undefined
-
-  const headers = [
-    { title: 'Name', key: 'name' },
-    { title: 'Description', key: 'description' },
-    { title: 'Price', key: 'price' },
-    { title: 'Status', key: 'is_available' },
-    { title: '', key: 'actions', sortable: false },
-  ]
 
   const pendingCount = computed(() => orders.value.filter(o => o.status === 'pending').length)
 

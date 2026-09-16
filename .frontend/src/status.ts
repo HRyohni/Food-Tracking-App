@@ -37,3 +37,9 @@ export const PARTNER_NEXT: Record<string, { status: string, label: string, color
 export function formatDate (value: string): string {
   return value ? new Date(value).toLocaleString() : ''
 }
+
+/** A stable, varied food emoji for a given id — purely decorative. */
+const FOOD_EMOJI = ['🍔', '🍕', '🍜', '🌮', '🍣', '🥗', '🍱', '🍟', '🥪', '🍩', '🍰', '🥤', '🍗', '🌯', '🍝', '🥟']
+export function foodEmoji (seed: number): string {
+  return FOOD_EMOJI[Math.abs(seed) % FOOD_EMOJI.length]
+}
